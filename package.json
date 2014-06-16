@@ -1,0 +1,22 @@
+{
+  "name": "ligature",
+  "version": "0.0.1",
+  "description": "",
+  "keywords": ["beefy","reload","bindings"],
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/jameswomack/ligature"
+  },
+  "scripts": {
+    "start": "beefy --live --index=html/index.html js/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "James J. Womack",
+  "license": "ISC",
+  "dependencies": {
+    "beefy": "~2.0.1",
+    "browserify": "~4.1.10",
+    "jquery": "~2.1.1"
+  }
+}
