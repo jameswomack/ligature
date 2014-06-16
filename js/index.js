@@ -15,6 +15,12 @@ var Index = function Index(){
  this._attributes = {};
 };
 
+Index.prototype.observeElement = function(el, cb){
+  var mo = new MutationObserver(cb);
+  mo.observe(el, {childList: true, attributes: true, subtree: true, characterData: true});
+  return mo;
+};
+
 Index.prototype.write = function(selector, content){
   $(selector).html(content);
 };
@@ -38,7 +44,8 @@ Index.prototype.magicizeKey = function(o, key){
     },
     set: function(newValue){
       self._attributes[key] = newValue;
-      $('*[data-text=' + key + ']').text(newValue);
+      var $element = $('*[data-text=' + key + ']');
+      ($element.text() !== newValue) && $element.text(newValue);
     }
   });
 };
@@ -51,6 +58,11 @@ Index.prototype.makeMap = function(){
     var key = $element.attr('data-text');
     self._map[key] = $element;
     self.magicizeKey(self._model, key);
+    self.observeElement(document.getElementsByTagName('h1')[0], function(){
+      var newValue = $element.context.innerText;
+      var oldValue = self._model[key];
+      (newValue !== oldValue) && (self._model[key] = $element.context.innerText);
+    });
   });
 };
 
