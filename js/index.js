@@ -1,71 +1,134 @@
 /*jshint -W079 */
 var $ = require('jquery');
-var Environment = require('./environment');
+var urlComponents = require('./environment').urlComponents();
 var Dom = require('./mediators/dom');
 
 var attribute = 'data-text';
 
+function clone(o) {
+  return integrate({}, o);
+}
+
+function integrate(p, o) {
+  Object.getOwnPropertyNames(o).forEach(function(key){
+    if(o[key] == null){
+      throw new Error('Cannot integrate null value at key "' + key + '"');
+    }
+    p[key] = o[key];
+  });
+  return p;
+}
+
+function pushState(state, title, path) {
+  for (var key in state) {
+    if (state[key] == null) {
+      throw new Error('Cannot add state null value at key "' + key + '"');
+    }
+  }
+  history.pushState.apply(history, arguments);
+}
+
 var Index = function Index(){
- this._map = {};
- this._model = {};
- this._attributes = {};
+  this._id = this.constructor.name;
+  this._map = {};
+  window.model = this._model = {};
+  this._attributes = {};
+  window.onpopstate = function(popStateEvent){
+    this.updateModel(popStateEvent.state);
+  }.bind(this);
 };
 
 Index.prototype.observeElement = function(el, cb){
-  Dom.shared().observeElement(el);
-  Dom.shared().on('change', cb);
+  new Dom(el, cb);
 };
 
 Index.prototype.magicizeKey = function(o, key){
-  var self = this;
-  this._attributes[key] = null;
+  var index = this;
+  index._attributes[key] = null;
+
   Object.defineProperty(o, key, {
     get: function(){
-      return self._attributes[key];
+      return index._attributes[key];
     },
+
     set: function(newValue){
-      self._attributes[key] = newValue;
-      var $element = $('*['+attribute+'=' + key + ']');
+      index._attributes[key] = newValue;
+      var $element = $('*['+attribute+'='+key+']');
+
+      // Check if history state is already up to date
+      if(index._pushOnModelChanges && history.state[key] !== newValue){
+        pushState(clone(index._model), null, '/'+index._id+'/'+key);
+      }
+
+      // Check if view content is already up to date
       ($element.text() !== newValue) && $element.text(newValue);
     }
   });
 };
 
-Index.prototype.makeMap = function(){
-  $('*['+attribute+']').each(function(index, element){    
-    var $element = $(element);
-    var key = element.getAttribute(attribute);
+Index.prototype.hydrateModel = function(){
+  this.updateModel(this.defaultData());
+};
 
-    var self = this;
-    var change = function change(){
-      console.log(arguments);
-      var newValue = $element.context.innerText;
-      var oldValue = self._model[key];
-      (newValue !== oldValue) && (self._model[key] = $element.context.innerText);
-    };
+Index.prototype.updateModel = function(state){
+  // Don't integrate null
+  state && integrate(this._model, state);
+};
 
-    $element.html(this.data()[key]);
-    this._map[key] = $element;
+// Create setters and getters
+Index.prototype.synthesizeModelProperties = function(){
+  Object.getOwnPropertyNames(this.defaultData()).forEach(function(key){
     this.magicizeKey(this._model, key);
-    this.observeElement(document.getElementsByTagName('h1')[0], change);
-    this.observeElement(document.getElementsByTagName('pre')[0], change);
   }.bind(this));
 };
 
-Index.prototype.data = function(){
+Index.prototype.bindModelToView = function(){
+  this.synthesizeModelProperties();
+  this.hydrateModel();
+
+  $('*['+attribute+']').each(function(index, element){
+    var $element = $(element);
+    var key = element.getAttribute(attribute);
+
+    $element.html(this.defaultData()[key]);
+    this._map[key] = $element;
+
+    var change = (function change(events){
+      if(events[0].target.parentNode != element) {
+        return;
+      }
+      var newValue = events[0].target.parentNode.innerText;
+      var oldValue = this._model[key];
+      if (newValue !== oldValue) {
+        console.log('change', events[0].target.parentNode, events[0].target.parentNode.innerText);
+        this._model[key] = newValue;
+      }
+    }).bind(this);
+
+    this.observeElement(element, change);
+  }.bind(this));
+};
+
+Index.prototype.defaultData = function(){
   return {
     title: 'Foobar',
-    pre:   Environment.urlComponents()
+    pre:   urlComponents,
+    foo:   'bar',
   };
 };
 
-Index.prototype.render = function(){
-  var $titleElement = $('*[data-text="title"]');
-  $titleElement.html('Foobar');
-  this.makeMap();
+Index.prototype.enablePushState = function(){
+  this._pushOnModelChanges = true;
 };
 
-var index = window.index = new Index();
-index.render();
+Index.prototype.render = function(){
+  this.bindModelToView();
+  this.enablePushState();
+};
+
+window.onload = function(){
+  var index = new Index();
+  index.render();
+};
 
 module.exports = Index;
