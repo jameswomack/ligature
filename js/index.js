@@ -1,25 +1,28 @@
 /*jshint -W079 */
-var $ = require('jquery');
+
+var O = require('./natives/object');
+var clone = O.clone;
+var integrate = O.integrate;
+var queryDom = document.querySelectorAll.bind(document);
+NodeList.prototype.each = function(cb){
+  for(var index in Array.prototype.slice.call(this)){
+    cb(index, this[index]);
+  }
+};
+HTMLElement.prototype.text = function(text){
+  var key = this.value ? 'value' : 'innerText';
+  if(text){
+    this[key] = text;
+  }
+  return this[key];
+};
+
 var urlComponents = require('./environment').urlComponents();
 var Dom = require('./mediators/dom');
 
 var attribute = 'data-text';
 
-function clone(o) {
-  return integrate({}, o);
-}
-
-function integrate(p, o) {
-  Object.getOwnPropertyNames(o).forEach(function(key){
-    if(o[key] == null){
-      throw new Error('Cannot integrate null value at key "' + key + '"');
-    }
-    p[key] = o[key];
-  });
-  return p;
-}
-
-function pushState(state, title, path) {
+function pushState(state/*, title, path */) {
   for (var key in state) {
     if (state[key] == null) {
       throw new Error('Cannot add state null value at key "' + key + '"');
@@ -53,15 +56,15 @@ Index.prototype.magicizeKey = function(o, key){
 
     set: function(newValue){
       index._attributes[key] = newValue;
-      var $element = $('*['+attribute+'='+key+']');
+      var $element = queryDom('['+attribute+'="'+key+'"]');
 
       // Check if history state is already up to date
-      if(index._pushOnModelChanges && history.state[key] !== newValue){
-        pushState(clone(index._model), null, '/'+index._id+'/'+key);
+      if(index._pushOnModelChanges && (!history.state || history.state[key] !== newValue)){
+        pushState(clone(index._model), null, '/'+index._id+'/'+key+'/'+newValue);
       }
 
       // Check if view content is already up to date
-      ($element.text() !== newValue) && $element.text(newValue);
+      ($element[0].text() !== newValue) && $element[0].text(newValue);
     }
   });
 };
@@ -86,15 +89,14 @@ Index.prototype.bindModelToView = function(){
   this.synthesizeModelProperties();
   this.hydrateModel();
 
-  $('*['+attribute+']').each(function(index, element){
-    var $element = $(element);
+  queryDom('['+attribute+']').each(function(index, element){
     var key = element.getAttribute(attribute);
 
-    $element.html(this.defaultData()[key]);
-    this._map[key] = $element;
+    element.innerHtml = this.defaultData()[key];
+    this._map[key] = element;
 
-    var change = (function change(events){
-      if(events[0].target.parentNode != element) {
+    var change = function change(events){
+      if(events[0].target.parentNode !== element) {
         return;
       }
       var newValue = events[0].target.parentNode.innerText;
@@ -103,7 +105,7 @@ Index.prototype.bindModelToView = function(){
         console.log('change', events[0].target.parentNode, events[0].target.parentNode.innerText);
         this._model[key] = newValue;
       }
-    }).bind(this);
+    }.bind(this);
 
     this.observeElement(element, change);
   }.bind(this));
@@ -122,8 +124,8 @@ Index.prototype.enablePushState = function(){
 };
 
 Index.prototype.render = function(){
-  this.bindModelToView();
   this.enablePushState();
+  this.bindModelToView();
 };
 
 window.onload = function(){

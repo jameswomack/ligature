@@ -16,7 +16,6 @@
   "license": "ISC",
   "dependencies": {
     "beefy": "~2.0.1",
-    "browserify": "~4.1.10",
-    "jquery": "~2.1.1"
+    "browserify": "~4.1.10"
   }
 }
